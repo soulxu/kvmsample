@@ -2,7 +2,7 @@ extern crate kvm_ioctls;
 extern crate kvm_bindings;
 extern crate libc;
 
-use std::{ffi::CString, fs::File, io::{Read, Write}, ptr::null_mut, slice};
+use std::{ffi::CString, fs::File, io::{Read, Write}, ptr::null_mut, slice, thread::JoinHandle};
 use kvm_bindings::{kvm_userspace_memory_region, KVM_MEM_LOG_DIRTY_PAGES};
 use kvm_ioctls::{Kvm, VcpuExit, VcpuFd, VmFd};
 
@@ -41,10 +41,16 @@ impl MyKvm {
         vcpu_fd.set_regs(&regs).unwrap();
     }
 
-    fn load_binary(ram_start: *mut u8) {
-        const BINARY_FILE:&str = "test.bin";
+    fn load_binary(ram_start: *mut u8, test: i32) {
+        let binary_file:&str;
 
-        match File::open(BINARY_FILE) {
+        if test == 0 {
+            binary_file = "test.bin"
+        } else {
+            binary_file = "test2.bin"
+        }
+
+        match File::open(binary_file) {
             Ok(mut file) => {
                 // let len = file.metadata().unwrap().len();
                 let mut buffer: Vec<u8> = Vec::new();
@@ -130,18 +136,27 @@ impl MyKvm {
         vm_fd.create_vcpu(vcpu_id).unwrap()
     }
 
-    fn kvm_run_vm(mut vcpu_fd: VcpuFd) {
+    fn kvm_run_vm(mut vcpu_fd: VcpuFd) -> JoinHandle<()> {
         let handle = std::thread::spawn(move|| {
             MyKvm::kvm_cpu_thread(&mut vcpu_fd);
         });
-        handle.join().unwrap();
+        handle
     }
 }
 
 fn main() {
     let kvm = MyKvm::kvm_init();
     let (vm_fd, ram_start) = MyKvm::kvm_create_vm(&kvm, RAM_SIZE);
-    MyKvm::load_binary(ram_start);
+    MyKvm::load_binary(ram_start, 0);
     let vcpu_fd = MyKvm::kvm_init_vcpu(vm_fd, 0);
-    MyKvm::kvm_run_vm(vcpu_fd);
+    let handle0 = MyKvm::kvm_run_vm(vcpu_fd);
+
+    let kvm = MyKvm::kvm_init();
+    let (vm_fd, ram_start) = MyKvm::kvm_create_vm(&kvm, RAM_SIZE);
+    MyKvm::load_binary(ram_start, 1);
+    let vcpu_fd = MyKvm::kvm_init_vcpu(vm_fd, 1);
+    let handle1 = MyKvm::kvm_run_vm(vcpu_fd);
+
+    handle0.join().unwrap();
+    handle1.join().unwrap();
 }
