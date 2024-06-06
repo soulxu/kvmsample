@@ -1,0 +1,9 @@
+[package]
+name = "kvmsample-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kvm-bindings = "0.8.2"
+kvm-ioctls = "0.17.0"
+libc = "0.2.155"
