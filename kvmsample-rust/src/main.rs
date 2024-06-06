@@ -130,8 +130,11 @@ impl MyKvm {
         vm_fd.create_vcpu(vcpu_id).unwrap()
     }
 
-    fn kvm_run_vm(vcpu_fd: &mut VcpuFd) {
-        MyKvm::kvm_cpu_thread(vcpu_fd);
+    fn kvm_run_vm(mut vcpu_fd: VcpuFd) {
+        let handle = std::thread::spawn(move|| {
+            MyKvm::kvm_cpu_thread(&mut vcpu_fd);
+        });
+        handle.join().unwrap();
     }
 }
 
@@ -139,6 +142,6 @@ fn main() {
     let kvm = MyKvm::kvm_init();
     let (vm_fd, ram_start) = MyKvm::kvm_create_vm(&kvm, RAM_SIZE);
     MyKvm::load_binary(ram_start);
-    let mut vcpu_fd = MyKvm::kvm_init_vcpu(vm_fd, 0);
-    MyKvm::kvm_run_vm(&mut vcpu_fd);
+    let vcpu_fd = MyKvm::kvm_init_vcpu(vm_fd, 0);
+    MyKvm::kvm_run_vm(vcpu_fd);
 }
